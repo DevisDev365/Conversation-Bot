@@ -1,6 +1,6 @@
 // Configuration
 const CONFIG = {
-    BACKEND_URL: 'http://localhost:8000',  // Change for production
+    BACKEND_URL: 'https://conversation-bot-kmel.onrender.com',  // Change for production
     MAX_SESSION_DURATION: 480,  // 8 minutes in seconds
     MAX_HISTORY_TURNS: 3
 };
