@@ -53,14 +53,9 @@ function updateStatus(state) {
 function startTimer() {
     AppState.sessionStartTime = new Date().toISOString();
     AppState.sessionDuration = 0;
-    const timerEl = document.getElementById('conv-timer');
     
     timerInterval = setInterval(() => {
         AppState.sessionDuration++;
-        
-        const m = Math.floor(AppState.sessionDuration / 60).toString().padStart(2, '0');
-        const s = (AppState.sessionDuration % 60).toString().padStart(2, '0');
-        timerEl.textContent = `${m}:${s}`;
         
         if (AppState.sessionDuration >= CONFIG.MAX_SESSION_DURATION) {
             endConversation();
@@ -69,6 +64,7 @@ function startTimer() {
 }
 
 async function handleSpeechEnd(blob) {
+    if (recorder) recorder.pause();
     updateStatus('PROCESSING');
     
     // Simulate API call for now (or make actual call if backend available)
@@ -109,6 +105,7 @@ async function handleSpeechEnd(blob) {
         await new Promise(r => setTimeout(r, 2000));
     }
     
+    if (recorder) recorder.resume();
     updateStatus('LISTENING');
 }
 
@@ -134,6 +131,7 @@ window.addEventListener('screenChanged', async (e) => {
         startTimer();
         
         // Fetch greeting
+        if (recorder) recorder.pause();
         updateStatus('PROCESSING');
         try {
             const greetFormData = new FormData();
@@ -160,6 +158,7 @@ window.addEventListener('screenChanged', async (e) => {
             await new Promise(r => setTimeout(r, 2000));
         }
         
+        if (recorder) recorder.resume();
         updateStatus('LISTENING');
     }
 });
