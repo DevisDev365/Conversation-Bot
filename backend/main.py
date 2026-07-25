@@ -1,77 +1,126 @@
-from fastapi import FastAPI, UploadFile, File, Form
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-import base64
+import os
 import json
-import re
+import asyncio
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
+from google import genai
+from google.genai import types
 
-from config import settings
-from gates import gates
-from models import ConversationResponse, HealthResponse
-from services import stt, llm, tts
-from prompts import GREETING_UK, GREETING_IN
+load_dotenv()
 
-app = FastAPI(title="Voice AI Research Platform")
+app = FastAPI()
 
-# CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS.split(','),
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=['*'],
-    allow_headers=['*'],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-@app.get('/health')
-async def health():
-    return HealthResponse(status='ok', gates=gates.get_status())
+# Initialize Gemini Client
+# Assumes GEMINI_API_KEY is in environment
+client = genai.Client()
 
-@app.post('/api/converse', response_model=ConversationResponse)
-async def converse(
-    file: UploadFile = File(...),
-    dialect: str = Form(...),
-    voice_gender: str = Form('female'),
-    history: str = Form('[]')  # JSON string of history turns
-):
-    history_list = json.loads(history)
-    audio_bytes = await file.read()
+@app.get("/api/health")
+async def health_check():
+    return {"status": "ok"}
+
+@app.websocket("/ws/converse")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
     
-    async with gates.admission:
-        # Gate 2: STT
-        async with gates.stt:
-            transcript = await stt.transcribe(audio_bytes, file.filename or 'audio.webm')
+    try:
+        # Wait for the first message to get dialect and voice config
+        init_data = await websocket.receive_text()
+        config = json.loads(init_data)
+        dialect = config.get("dialect", "uk")
+        gender = config.get("gender", "female")
         
-        # Gate 3: LLM
-        async with gates.llm:
-            response_text = await llm.generate_response(transcript, dialect, history_list)
+        # Determine Voice Name
+        # Gemini 2.0 voices: Puck (male), Aoede (female), Charon (male), Kore (female), Fenrir (male), Leda (female)
+        voice_name = "Aoede" # Default female
+        if gender == "male":
+            voice_name = "Puck"
+            
+        accent_instruction = "You must always speak with a thick UK British accent."
+        if dialect == "in":
+            accent_instruction = "You must always speak with an Indian English accent."
+            
+        system_instruction = f"{accent_instruction} You are a friendly AI assistant having a brief voice conversation. Keep your answers concise, natural, and conversational."
         
-        # Gate 4: TTS
-        async with gates.tts:
-            audio_mp3 = await tts.synthesize(response_text, dialect, voice_gender)
-    
-    audio_b64 = base64.b64encode(audio_mp3).decode('utf-8')
-    
-    return ConversationResponse(
-        transcript=transcript,
-        response_text=response_text,
-        audio_base64=audio_b64
-    )
+        # Connect to Gemini Live
+        async with client.aio.live.connect(
+            model="gemini-2.0-flash-exp",
+            config=types.LiveConnectConfig(
+                response_modalities=[types.LiveModality.AUDIO],
+                system_instruction=types.Content(parts=[types.Part.from_text(text=system_instruction)]),
+                speech_config=types.SpeechConfig(
+                    voice_config=types.VoiceConfig(
+                        prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                            voice_name=voice_name
+                        )
+                    )
+                )
+            )
+        ) as session:
+            print("Connected to Gemini Live API")
+            
+            # Send initial greeting
+            greeting_msg = "Hello! I'm your AI assistant. How are you doing today?"
+            await session.send(input=greeting_msg, end_of_turn=True)
 
-@app.post('/api/greeting', response_model=ConversationResponse)
-async def get_greeting(
-    dialect: str = Form(...),
-    voice_gender: str = Form('female')
-):
-    greeting_text = GREETING_UK if dialect == 'uk' else GREETING_IN
-    
-    async with gates.tts:
-        audio_mp3 = await tts.synthesize(greeting_text, dialect, voice_gender)
-    
-    audio_b64 = base64.b64encode(audio_mp3).decode('utf-8')
-    
-    return ConversationResponse(
-        transcript='',
-        response_text=greeting_text,
-        audio_base64=audio_b64
-    )
+            # Task to receive audio from Gemini and send to browser
+            async def receive_from_gemini():
+                async for response in session.receive():
+                    server_content = response.server_content
+                    if server_content is not None:
+                        model_turn = server_content.model_turn
+                        if model_turn:
+                            for part in model_turn.parts:
+                                # Send raw audio bytes to browser
+                                if part.inline_data and part.inline_data.data:
+                                    await websocket.send_bytes(part.inline_data.data)
 
+            # Task to receive audio from browser and send to Gemini
+            async def send_to_gemini():
+                try:
+                    while True:
+                        # Receive PCM audio from browser
+                        data = await websocket.receive_bytes()
+                        
+                        # Gemini expects raw PCM16 at 16kHz
+                        await session.send(
+                            input=types.LiveClientRealtimeInput(
+                                media_chunks=[
+                                    types.Blob(
+                                        data=data,
+                                        mime_type="audio/pcm;rate=16000"
+                                    )
+                                ]
+                            )
+                        )
+                except WebSocketDisconnect:
+                    print("Browser disconnected")
+            
+            # Run both tasks concurrently
+            receive_task = asyncio.create_task(receive_from_gemini())
+            send_task = asyncio.create_task(send_to_gemini())
+            
+            done, pending = await asyncio.wait(
+                [receive_task, send_task],
+                return_when=asyncio.FIRST_COMPLETED
+            )
+            
+            # Cancel the pending task if one finishes/fails
+            for task in pending:
+                task.cancel()
+            
+    except Exception as e:
+        print(f"WebSocket error: {e}")
+    finally:
+        try:
+            await websocket.close()
+        except Exception:
+            pass

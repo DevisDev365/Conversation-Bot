@@ -1,15 +1,18 @@
-class AudioPlayer {
+class AudioStreamPlayer {
     constructor(canvasId) {
         this.canvas = document.getElementById(canvasId);
         this.ctx = this.canvas.getContext('2d');
-        this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        this.audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
         this.analyser = this.audioContext.createAnalyser();
         this.analyser.fftSize = 256;
+        this.analyser.connect(this.audioContext.destination);
+        
         this.isPlaying = false;
         this.animationId = null;
         this.accentColor = '#4A9EFF';
         
-        // Handle resize
+        this.nextPlayTime = 0;
+        
         window.addEventListener('resize', () => this.resize());
         this.resize();
     }
@@ -26,31 +29,47 @@ class AudioPlayer {
         this.accentColor = color; 
     }
     
-    async playBase64(base64Audio) {
-        try {
-            const binary = atob(base64Audio);
-            const bytes = new Uint8Array(binary.length);
-            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-            
-            const audioBuffer = await this.audioContext.decodeAudioData(bytes.buffer);
-            const source = this.audioContext.createBufferSource();
-            source.buffer = audioBuffer;
-            source.connect(this.analyser);
-            this.analyser.connect(this.audioContext.destination);
-            
-            return new Promise(resolve => {
-                source.onended = () => { 
-                    this.isPlaying = false; 
-                    this.drawIdle(); 
-                    resolve(); 
-                };
-                this.isPlaying = true;
-                source.start();
-                this.drawWaveform();
-            });
-        } catch (e) {
-            console.error("Audio playback error:", e);
+    async init() {
+        if (this.audioContext.state === 'suspended') {
+            await this.audioContext.resume();
         }
+    }
+
+    playPCMChunk(pcm16Buffer) {
+        if (!this.isPlaying) {
+            this.isPlaying = true;
+            this.drawWaveform();
+        }
+
+        // Convert ArrayBuffer of Int16 to Float32
+        const int16Array = new Int16Array(pcm16Buffer);
+        const float32Array = new Float32Array(int16Array.length);
+        for (let i = 0; i < int16Array.length; i++) {
+            float32Array[i] = int16Array[i] / 32768.0;
+        }
+
+        const audioBuffer = this.audioContext.createBuffer(1, float32Array.length, 16000);
+        audioBuffer.getChannelData(0).set(float32Array);
+
+        const source = this.audioContext.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(this.analyser);
+
+        const currentTime = this.audioContext.currentTime;
+        if (this.nextPlayTime < currentTime) {
+            this.nextPlayTime = currentTime + 0.05; // 50ms buffer
+        }
+
+        source.start(this.nextPlayTime);
+        this.nextPlayTime += audioBuffer.duration;
+        
+        // When this specific chunk ends, check if we're done playing all chunks
+        source.onended = () => {
+            if (this.audioContext.currentTime >= this.nextPlayTime) {
+                this.isPlaying = false;
+                this.drawIdle();
+            }
+        };
     }
     
     stop() {
@@ -76,16 +95,12 @@ class AudioPlayer {
         
         for(let i = 0; i < bufferLength; i++) {
             const barHeight = (dataArray[i] / 255) * this.canvas.height * 0.8;
-            
             const y = (this.canvas.height - barHeight) / 2;
-            
             this.ctx.fillRect(x, y, barWidth - 1, barHeight);
-            
             x += barWidth;
         }
         
         this.ctx.shadowBlur = 0;
-        
         this.animationId = requestAnimationFrame(() => this.drawWaveform());
     }
     
@@ -107,31 +122,5 @@ class AudioPlayer {
         this.ctx.globalAlpha = 1.0;
         
         this.animationId = requestAnimationFrame(() => this.drawIdle());
-    }
-    
-    drawListening() {
-        this.stop();
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        
-        const centerX = this.canvas.width / 2;
-        const centerY = this.canvas.height / 2;
-        
-        const time = Date.now() * 0.003;
-        const radius = 20 + Math.sin(time) * 10;
-        
-        this.ctx.beginPath();
-        this.ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI, false);
-        
-        this.ctx.shadowBlur = 20;
-        this.ctx.shadowColor = '#ef4444'; // Red for listening
-        this.ctx.fillStyle = 'rgba(239, 68, 68, 0.5)';
-        this.ctx.fill();
-        this.ctx.lineWidth = 2;
-        this.ctx.strokeStyle = '#ef4444';
-        this.ctx.stroke();
-        
-        this.ctx.shadowBlur = 0;
-        
-        this.animationId = requestAnimationFrame(() => this.drawListening());
     }
 }

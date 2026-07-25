@@ -7,7 +7,7 @@ const CONFIG = {
 
 // Application State
 const AppState = {
-    currentScreen: 'welcome',
+    currentScreen: 'dialect',
     participantId: null,
     dialect: null,       // 'uk' or 'in'
     voiceGender: null,   // 'male' or 'female'

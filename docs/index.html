@@ -20,99 +20,7 @@
 <body>
     <div id="app-container">
         
-        <!-- Screen 1: Welcome -->
-        <section id="screen-welcome" class="screen">
-            <div class="glass-card text-center" style="text-align: center;">
-                <h1>Voice AI Research Study</h1>
-                <h3 style="color: var(--text-muted); font-weight: 500; margin-bottom: 2rem;">Experience a natural conversation with an AI assistant</h3>
-                <p>This study explores how people interact with conversational AI. You'll have a 5-8 minute voice conversation and answer a brief survey. Your responses are anonymous.</p>
-                <div style="margin: 2rem 0;">
-                    <span style="display: inline-block; padding: 0.5rem 1rem; background: rgba(255,255,255,0.05); border-radius: 8px; border: 1px solid var(--glass-border); font-family: var(--font-heading);">
-                        ⏱️ Estimated time: ~10 minutes
-                    </span>
-                </div>
-                <button id="btn-begin" class="btn btn-primary" style="width: 100%; max-width: 300px;">Begin Study</button>
-            </div>
-        </section>
-
-        <!-- Screen 2: Consent -->
-        <section id="screen-consent" class="screen">
-            <div class="glass-card">
-                <h2>Informed Consent</h2>
-                <div style="background: rgba(0,0,0,0.2); padding: 1.5rem; border-radius: 12px; border: 1px solid var(--glass-border); margin: 1.5rem 0;">
-                    <p style="margin-bottom: 0;">By participating in this study, you agree to:</p>
-                    <ol style="margin-left: 1.5rem; margin-top: 1rem; color: var(--text-muted);">
-                        <li style="margin-bottom: 0.5rem;">Have a recorded voice conversation with an AI assistant</li>
-                        <li style="margin-bottom: 0.5rem;">Complete a brief post-conversation survey</li>
-                        <li style="margin-bottom: 0.5rem;">Allow your anonymized responses to be used for research purposes</li>
-                    </ol>
-                    <p style="margin-top: 1rem; margin-bottom: 0;">Your participation is voluntary. No personally identifiable information is collected.</p>
-                </div>
-                <label class="checkbox-group">
-                    <input type="checkbox" id="consent-checkbox">
-                    <span>I understand and agree to participate</span>
-                </label>
-                <div style="margin-top: 2rem; display: flex; justify-content: flex-end;">
-                    <button id="btn-consent-continue" class="btn btn-primary" disabled>Continue</button>
-                </div>
-            </div>
-        </section>
-
-        <!-- Screen 3: Demographics -->
-        <section id="screen-demographics" class="screen">
-            <div class="glass-card">
-                <h2>Quick Background</h2>
-                <p>Please provide some basic information to help us contextualize the research.</p>
-                
-                <form id="demographics-form">
-                    <div class="form-group">
-                        <label for="demo-age">Age Range</label>
-                        <select id="demo-age" required>
-                            <option value="" disabled selected>Select age range</option>
-                            <option value="under-18">Under 18</option>
-                            <option value="18-24">18-24</option>
-                            <option value="25-34">25-34</option>
-                            <option value="35-44">35-44</option>
-                            <option value="45-54">45-54</option>
-                            <option value="55+">55+</option>
-                        </select>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="demo-gender">Gender</label>
-                        <select id="demo-gender" required>
-                            <option value="" disabled selected>Select gender</option>
-                            <option value="male">Male</option>
-                            <option value="female">Female</option>
-                            <option value="non-binary">Non-binary</option>
-                            <option value="prefer-not">Prefer not to say</option>
-                        </select>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="demo-language">Native Language</label>
-                        <input type="text" id="demo-language" placeholder="e.g., English, Spanish, Hindi" required>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="demo-english">English Proficiency</label>
-                        <select id="demo-english" required>
-                            <option value="" disabled selected>Select proficiency</option>
-                            <option value="native">Native Speaker</option>
-                            <option value="fluent">Fluent</option>
-                            <option value="intermediate">Intermediate</option>
-                            <option value="basic">Basic</option>
-                        </select>
-                    </div>
-                    
-                    <div style="margin-top: 2rem; display: flex; justify-content: flex-end;">
-                        <button type="submit" id="btn-demo-continue" class="btn btn-primary">Continue</button>
-                    </div>
-                </form>
-            </div>
-        </section>
-
-        <!-- Screen 4: Dialect Select -->
+        <!-- Screen 1: Dialect Select -->
         <section id="screen-dialect" class="screen">
             <h2 style="text-align: center;">Choose Your AI Conversation Partner</h2>
             <p style="text-align: center;">Select the accent you'd like the AI to speak with.</p>
@@ -214,12 +122,7 @@
     <!-- Scripts -->
     <script src="js/app.js"></script>
     <script src="js/audio-player.js"></script>
-    <script src="js/recorder.js"></script>
-    
     <!-- Screen logic scripts -->
-    <script src="js/screens/welcome.js"></script>
-    <script src="js/screens/consent.js"></script>
-    <script src="js/screens/demographics.js"></script>
     <script src="js/screens/dialect-select.js"></script>
     <script src="js/screens/voice-select.js"></script>
     <script src="js/screens/conversation.js"></script>
