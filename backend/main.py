@@ -8,7 +8,7 @@ import re
 from config import settings
 from gates import gates
 from models import ConversationResponse, HealthResponse
-from services import stt, llm, tts, sheets
+from services import stt, llm, tts, supabase_db
 from prompts import GREETING_UK, GREETING_IN
 
 app = FastAPI(title="Voice AI Research Platform")
@@ -77,5 +77,5 @@ async def get_greeting(
 
 @app.post('/api/submit-session')
 async def submit_session(data: dict):
-    success = await sheets.write_session_data(data)
+    success = await supabase_db.write_session_data(data)
     return {'success': success}

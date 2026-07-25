@@ -6,7 +6,8 @@ load_dotenv()
 class Settings:
     GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-    GOOGLE_SHEETS_WEBHOOK_URL = os.getenv("GOOGLE_SHEETS_WEBHOOK_URL", "")
+    SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+    SUPABASE_KEY = os.getenv("SUPABASE_KEY", "")
     ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "*")
     
     ADMISSION_LIMIT = int(os.getenv("ADMISSION_LIMIT", "30"))
