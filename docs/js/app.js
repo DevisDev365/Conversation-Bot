@@ -95,7 +95,7 @@ function applyAccentTheme(dialect) {
 
 // Initialize app
 function initApp() {
-    navigateTo('welcome');
+    navigateTo('dialect');
 }
 
 document.addEventListener('DOMContentLoaded', initApp);
