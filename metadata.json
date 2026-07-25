@@ -1,0 +1,10 @@
+{
+  "name": "DialectLive AI Voice",
+  "description": "Real-time voice conversation with authentic Indian English and UK English AI personas.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
