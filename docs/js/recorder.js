@@ -23,7 +23,11 @@ class VoiceRecorder {
                 },
                 positiveSpeechThreshold: 0.8,
                 negativeSpeechThreshold: 0.3,
-                minSpeechFrames: 5
+                minSpeechFrames: 5,
+                ortWasmUrl: "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/ort-wasm.wasm",
+                ortWasmSimdUrl: "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.18.0/dist/ort-wasm-simd.wasm",
+                workletURL: "https://cdn.jsdelivr.net/npm/@ricky0123/vad-web@0.0.30/dist/vad.worklet.bundle.min.js",
+                modelURL: "https://cdn.jsdelivr.net/npm/@ricky0123/vad-web@0.0.30/dist/silero_vad.onnx"
             });
             this.myVad.start();
         } catch (e) {
