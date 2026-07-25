@@ -19,9 +19,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Get API key from environment (checking both common variable names)
+api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+
 # Initialize Gemini Client
-# Assumes GEMINI_API_KEY is in environment
-client = genai.Client()
+try:
+    client = genai.Client(api_key=api_key)
+except Exception as e:
+    print(f"Failed to initialize Gemini Client: {e}")
+    client = None
+
 
 @app.get("/api/health")
 async def health_check():
