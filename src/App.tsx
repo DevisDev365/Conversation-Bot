@@ -15,8 +15,8 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState<boolean>(false);
 
   const [voiceConfig, setVoiceConfig] = useState<VoiceConfig>({
-    voiceName: 'Kore',
-    gender: 'female',
+    voiceName: 'Charon',
+    gender: 'male',
     speed: 1.0,
     pitch: 1.0,
   });
@@ -27,9 +27,9 @@ export default function App() {
     setCurrentDialect(selectedDialect);
     // Set default voice character for dialect
     if (selectedDialect === 'indian') {
-      setVoiceConfig((prev) => ({ ...prev, voiceName: 'Kore' }));
+      setVoiceConfig((prev) => ({ ...prev, voiceName: 'Charon', gender: 'male' }));
     } else {
-      setVoiceConfig((prev) => ({ ...prev, voiceName: 'Zephyr' }));
+      setVoiceConfig((prev) => ({ ...prev, voiceName: 'Zephyr', gender: 'female' }));
     }
     setIsInStudio(true);
   };
@@ -37,9 +37,9 @@ export default function App() {
   const handleSelectDialectInStudio = (newDialect: DialectMode) => {
     setCurrentDialect(newDialect);
     if (newDialect === 'indian') {
-      setVoiceConfig((prev) => ({ ...prev, voiceName: 'Kore' }));
+      setVoiceConfig((prev) => ({ ...prev, voiceName: 'Charon', gender: 'male' }));
     } else {
-      setVoiceConfig((prev) => ({ ...prev, voiceName: 'Zephyr' }));
+      setVoiceConfig((prev) => ({ ...prev, voiceName: 'Zephyr', gender: 'female' }));
     }
   };
 

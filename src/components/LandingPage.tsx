@@ -50,7 +50,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <span className="text-xs uppercase tracking-widest text-[#9C9481] font-bold">UK Persona</span>
               </div>
 
-              <h2 className="text-3xl font-serif text-[#2D2926] mb-3">The Londoner</h2>
+              <h2 className="text-3xl font-serif text-[#2D2926] mb-3">UK British Voice</h2>
 
               <p className="text-[#6B6658] text-sm mb-6 leading-relaxed italic bg-[#F5F2E9]/60 p-4 rounded-2xl border border-[#E6E2D3]/60 w-full">
                 "{ukPersona.samplePhrases[0]}"
@@ -81,10 +81,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
 
               <div className="flex items-center gap-2 mb-2">
-                <span className="text-xs uppercase tracking-widest text-[#9C9481] font-bold">Desi Persona</span>
+                <span className="text-xs uppercase tracking-widest text-[#9C9481] font-bold">Indian Persona</span>
               </div>
 
-              <h2 className="text-3xl font-serif text-[#2D2926] mb-3">The Mumbaikar</h2>
+              <h2 className="text-3xl font-serif text-[#2D2926] mb-3">Charismatic Indian Voice</h2>
 
               <p className="text-[#6B6658] text-sm mb-6 leading-relaxed italic bg-[#F5F2E9]/60 p-4 rounded-2xl border border-[#E6E2D3]/60 w-full">
                 "{indianPersona.samplePhrases[0]}"
@@ -92,9 +92,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
               {/* Key Features Bullet List */}
               <ul className="text-xs uppercase tracking-widest text-[#9C9481] font-semibold space-y-2 mb-8 text-center">
-                <li className="flex items-center justify-center gap-1.5">• Indian Dialects & Phrasal Verbs</li>
-                <li className="flex items-center justify-center gap-1.5">• Conversational Desi Phrases</li>
-                <li className="flex items-center justify-center gap-1.5">• Polite & Warm Indian Tone</li>
+                <li className="flex items-center justify-center gap-1.5">• Deep & Resonant Charon Voice</li>
+                <li className="flex items-center justify-center gap-1.5">• Urban Indian English Expressions</li>
+                <li className="flex items-center justify-center gap-1.5">• Warm, Articulate & Witty Tone</li>
               </ul>
             </div>
 
@@ -124,7 +124,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               onClick={onOpenGlossary}
               className="text-xs uppercase tracking-widest font-bold text-[#D4A373] hover:text-[#2D2926] underline transition-colors"
             >
-              Explore 20+ Regional Idioms →
+              Explore 40+ Regional Idioms →
             </button>
             <div className="text-right hidden sm:block">
               <p className="text-[10px] uppercase tracking-[0.2em] text-[#9C9481] font-bold">Neural Engine</p>

@@ -2,27 +2,21 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   DialectMode,
   ConversationState,
-  TranscriptItem,
   VoiceConfig,
   IdiomItem,
 } from '../types';
-import { PERSONAS, detectIdiomsInText } from '../data/idioms';
+import { PERSONAS } from '../data/idioms';
 import { LiveAudioEngine } from '../lib/audio-live';
 import { AudioVisualizer } from './AudioVisualizer';
 import {
   Mic,
   MicOff,
   Square,
-  Volume2,
   Sparkles,
   RefreshCw,
-  Send,
-  Trash2,
-  Info,
-  ChevronRight,
-  MessageSquare,
-  HelpCircle,
-  Lightbulb,
+  CheckCircle2,
+  ShieldCheck,
+  Radio,
 } from 'lucide-react';
 
 interface VoiceStudioProps {
@@ -46,27 +40,29 @@ export const VoiceStudio: React.FC<VoiceStudioProps> = ({
 
   const [conversationState, setConversationState] =
     useState<ConversationState>('idle');
-  const [transcripts, setTranscripts] = useState<TranscriptItem[]>([]);
-  const [textInput, setTextInput] = useState('');
   const [isMuted, setIsMuted] = useState(false);
   const [micVolume, setMicVolume] = useState(0);
   const [isAiSpeaking, setIsAiSpeaking] = useState(false);
-  const [activeTooltipIdiom, setActiveTooltipIdiom] = useState<string | null>(
-    null
-  );
+
+  // Engine Initialization Loading Modal State
+  const [isInitializing, setIsInitializing] = useState(true);
+  const [initStep, setInitStep] = useState(1);
 
   const wsRef = useRef<WebSocket | null>(null);
   const audioEngineRef = useRef<LiveAudioEngine | null>(null);
-  const transcriptEndRef = useRef<HTMLDivElement | null>(null);
 
-  // Scroll transcript to bottom
-  const scrollToBottom = () => {
-    transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
+  // Handle Voice Engine Warm-Up Progress Sequence
   useEffect(() => {
-    scrollToBottom();
-  }, [transcripts]);
+    setIsInitializing(true);
+    setInitStep(1);
+
+    // Fallback safety timeout if AI response is delayed
+    const safetyTimer = setTimeout(() => {
+      setIsInitializing(false);
+    }, 12000);
+
+    return () => clearTimeout(safetyTimer);
+  }, [dialect, voiceConfig.voiceName]);
 
   // Connect WebSocket & Audio Engine
   const startVoiceSession = useCallback(async () => {
@@ -96,7 +92,7 @@ export const VoiceStudio: React.FC<VoiceStudioProps> = ({
 
       ws.onopen = () => {
         console.log('WebSocket connected to Live Voice Server');
-        // Send init message
+        setInitStep(2);
         ws.send(
           JSON.stringify({
             type: 'init',
@@ -112,7 +108,7 @@ export const VoiceStudio: React.FC<VoiceStudioProps> = ({
 
           if (msg.type === 'status' && msg.status === 'connected') {
             setConversationState('connected');
-            // Start recording mic audio
+            setInitStep(3);
             audioEngine.startRecording((pcm16Base64) => {
               if (
                 wsRef.current &&
@@ -130,22 +126,13 @@ export const VoiceStudio: React.FC<VoiceStudioProps> = ({
           } else if (msg.type === 'audio' && msg.audio) {
             audioEngine.playAudioChunk(msg.audio);
             setConversationState('speaking');
+            setInitStep(4);
+            setIsInitializing(false); // Modal dismisses right as AI starts speaking
           } else if (msg.type === 'transcript' && msg.text) {
-            const detected = detectIdiomsInText(msg.text, dialect);
-            setTranscripts((prev) => [
-              ...prev,
-              {
-                id: Date.now().toString() + Math.random().toString(36).substring(2, 5),
-                sender: msg.sender || 'ai',
-                text: msg.text,
-                timestamp: new Date().toLocaleTimeString([], {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                }),
-                dialect,
-                detectedIdioms: detected,
-              },
-            ]);
+            if (msg.sender === 'ai') {
+              setInitStep(4);
+              setIsInitializing(false);
+            }
           } else if (msg.type === 'interrupted') {
             audioEngine.interrupt();
             setConversationState('listening');
@@ -153,16 +140,16 @@ export const VoiceStudio: React.FC<VoiceStudioProps> = ({
             setConversationState('listening');
           } else if (msg.type === 'error') {
             console.warn('Live WS error, relying on HTTP voice fallback');
-            setConversationState('listening');
+            triggerHttpGreetingFallback();
           }
         } catch (err) {
           console.error('Error handling WS message:', err);
         }
       };
 
-      ws.onerror = (err) => {
+      ws.onerror = () => {
         console.warn('WebSocket live voice connection unready, active HTTP voice fallback mode enabled.');
-        setConversationState('listening');
+        triggerHttpGreetingFallback();
       };
 
       ws.onclose = () => {
@@ -170,9 +157,43 @@ export const VoiceStudio: React.FC<VoiceStudioProps> = ({
       };
     } catch (e) {
       console.warn('Failed to create WebSocket, relying on HTTP voice fallback:', e);
-      setConversationState('listening');
+      triggerHttpGreetingFallback();
     }
   }, [dialect, voiceConfig.voiceName, isMuted]);
+
+  // Trigger initial greeting via HTTP fallback
+  const triggerHttpGreetingFallback = async () => {
+    setInitStep(3);
+    setConversationState('connecting');
+    try {
+      const res = await fetch('/api/chat-speech', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt:
+            dialect === 'indian'
+              ? 'Hello! Please greet me warmly in your charismatic urban Indian English voice in 1 short sentence.'
+              : 'Hello! Please greet me warmly in your charming British voice in 1 short sentence.',
+          dialect,
+          voiceName: voiceConfig.voiceName,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.text) {
+        if (data.audio && audioEngineRef.current) {
+          audioEngineRef.current.playAudioChunk(data.audio);
+        }
+      }
+      setInitStep(4);
+      setIsInitializing(false);
+      setConversationState('listening');
+    } catch (err) {
+      console.error('HTTP greeting fallback error:', err);
+      setIsInitializing(false);
+      setConversationState('listening');
+    }
+  };
 
   // Clean up on unmount or dialect change
   useEffect(() => {
@@ -190,10 +211,45 @@ export const VoiceStudio: React.FC<VoiceStudioProps> = ({
     };
   }, [dialect, voiceConfig.voiceName]);
 
+  // Trigger Spoken Voice Dialogue Turn
+  const triggerVoicePrompt = async (prompt: string) => {
+    if (!prompt.trim()) return;
+
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'text', text: prompt }));
+      setConversationState('speaking');
+    } else {
+      // HTTP Voice Fallback
+      setConversationState('connecting');
+      try {
+        const res = await fetch('/api/chat-speech', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt,
+            dialect,
+            voiceName: voiceConfig.voiceName,
+          }),
+        });
+
+        const data = await res.json();
+        if (data.text) {
+          if (data.audio && audioEngineRef.current) {
+            audioEngineRef.current.playAudioChunk(data.audio);
+          }
+        }
+        setConversationState('listening');
+      } catch (err) {
+        console.error('HTTP fallback error:', err);
+        setConversationState('error');
+      }
+    }
+  };
+
   // Handle Injected Idiom Practice from Glossary Modal
   useEffect(() => {
     if (injectedIdiomPrompt) {
-      handleSendTextMessage(
+      triggerVoicePrompt(
         `Can you use the expression "${injectedIdiomPrompt.phrase}" in a natural sentence and explain it to me?`
       );
       if (onClearInjectedIdiom) onClearInjectedIdiom();
@@ -211,90 +267,90 @@ export const VoiceStudio: React.FC<VoiceStudioProps> = ({
     setConversationState('listening');
   };
 
-  // Send Text Input Message (or Fallback HTTP if WebSocket disconnected)
-  const handleSendTextMessage = async (textToSend?: string) => {
-    const prompt = textToSend || textInput;
-    if (!prompt.trim()) return;
-
-    // Add user turn to transcript
-    const userItem: TranscriptItem = {
-      id: Date.now().toString(),
-      sender: 'user',
-      text: prompt,
-      timestamp: new Date().toLocaleTimeString([], {
-        hour: '2-digit',
-        minute: '2-digit',
-      }),
-      dialect,
-    };
-    setTranscripts((prev) => [...prev, userItem]);
-    setTextInput('');
-
-    // If WebSocket is open, send text
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type: 'text', text: prompt }));
-      setConversationState('speaking');
-    } else {
-      // HTTP Fallback
-      setConversationState('connecting');
-      try {
-        const res = await fetch('/api/chat-speech', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            prompt,
-            dialect,
-            voiceName: voiceConfig.voiceName,
-          }),
-        });
-
-        const data = await res.json();
-        if (data.text) {
-          const detected = detectIdiomsInText(data.text, dialect);
-          setTranscripts((prev) => [
-            ...prev,
-            {
-              id: (Date.now() + 1).toString(),
-              sender: 'ai',
-              text: data.text,
-              timestamp: new Date().toLocaleTimeString([], {
-                hour: '2-digit',
-                minute: '2-digit',
-              }),
-              dialect,
-              detectedIdioms: detected,
-            },
-          ]);
-
-          if (data.audio && audioEngineRef.current) {
-            audioEngineRef.current.playAudioChunk(data.audio);
-          }
-        }
-        setConversationState('listening');
-      } catch (err) {
-        console.error('HTTP fallback error:', err);
-        setConversationState('error');
-      }
-    }
-  };
-
-  const quickPrompts =
-    dialect === 'indian'
-      ? [
-          'What is your good name and where did you pass out from?',
-          'Do one thing, explain how to prepone an important meeting.',
-          'Tell me about your favorite time-pass activity!',
-          'Can you kindly revert back regarding doing the needful?',
-        ]
-      : [
-          'Right then, fancy a quick spot of tea?',
-          'Tell me why you are proper chuffed to bits today!',
-          'Is charging 5 quid for coffee taking the biscuit?',
-          'How was your weekend? Everything sorted now?',
-        ];
-
   return (
-    <div className="max-w-6xl mx-auto px-6 py-8 space-y-6">
+    <div className="max-w-6xl mx-auto px-6 py-8 space-y-6 relative">
+      {/* Voice Engine Initialization Overlay Modal */}
+      {isInitializing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#2D2926]/60 backdrop-blur-md animate-fade-in">
+          <div className="relative w-full max-w-md bg-[#FDFBF7] border border-[#E6E2D3] rounded-[32px] p-8 shadow-2xl text-center space-y-6">
+            <div className="w-20 h-20 mx-auto rounded-full bg-[#E9EDC9] border border-[#CCD5AE] flex items-center justify-center relative shadow-inner">
+              <Radio className="w-8 h-8 text-[#2D2926] animate-pulse" />
+              <div className="absolute inset-0 rounded-full border-2 border-[#D4A373] animate-ping opacity-20" />
+            </div>
+
+            <div>
+              <span className="text-[10px] uppercase tracking-widest px-3 py-1 rounded-full bg-[#F5F2E9] text-[#2D2926] font-bold border border-[#E6E2D3]">
+                AI Voice Connection
+              </span>
+              <h3 className="text-2xl font-serif font-bold text-[#2D2926] mt-3">
+                Connecting Voice Engine
+              </h3>
+              <p className="text-xs text-[#6B6658] mt-1">
+                Preparing real-time voice stream for {persona.name}...
+              </p>
+            </div>
+
+            {/* Initialization Steps List */}
+            <div className="bg-white p-4 rounded-2xl border border-[#E6E2D3] text-left space-y-3 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-[#2D2926] font-medium flex items-center gap-2">
+                  {initStep >= 1 ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4 animate-spin text-[#D4A373]" />
+                  )}
+                  Connecting Audio & WebSocket Stream
+                </span>
+                <span className="text-[10px] font-bold text-[#9C9481]">
+                  {initStep >= 1 ? 'Ready' : 'Connecting'}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-[#2D2926] font-medium flex items-center gap-2">
+                  {initStep >= 2 ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4 animate-spin text-[#D4A373]" />
+                  )}
+                  Loading {dialect === 'indian' ? 'Indian' : 'UK'} Dialect Model ({voiceConfig.voiceName})
+                </span>
+                <span className="text-[10px] font-bold text-[#9C9481]">
+                  {initStep >= 2 ? 'Ready' : 'Pending'}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-[#2D2926] font-medium flex items-center gap-2">
+                  {initStep >= 3 ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4 animate-spin text-[#D4A373]" />
+                  )}
+                  AI Companion is preparing initial greeting...
+                </span>
+                <span className="text-[10px] font-bold text-[#9C9481]">
+                  {initStep >= 3 ? 'Speaking...' : 'Pending'}
+                </span>
+              </div>
+            </div>
+
+            {/* Progress Bar */}
+            <div className="w-full bg-[#E6E2D3] h-2 rounded-full overflow-hidden">
+              <div
+                className="bg-[#2D2926] h-full transition-all duration-500"
+                style={{ width: `${(initStep / 3) * 100}%` }}
+              />
+            </div>
+
+            <div className="flex items-center justify-center gap-1.5 text-[10px] text-[#6B6658] font-semibold">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Modal will auto-dismiss when AI starts speaking</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Top Bar: Active Persona Header */}
       <div className="p-6 rounded-[32px] bg-white border border-[#E6E2D3] shadow-sm flex flex-col md:flex-row items-center justify-between gap-6">
         <div className="flex items-center gap-4 text-center md:text-left">
@@ -320,35 +376,45 @@ export const VoiceStudio: React.FC<VoiceStudioProps> = ({
           </div>
         </div>
 
-        {/* Dialect Quick Toggle Pill */}
-        <div className="flex items-center gap-2 p-1.5 bg-[#F5F2E9] rounded-full border border-[#E6E2D3]">
+        {/* Dialect Quick Toggle & Glossary Pill */}
+        <div className="flex items-center gap-3">
           <button
-            onClick={() => onSwitchDialect('indian')}
-            className={`px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-all ${
-              dialect === 'indian'
-                ? 'bg-[#2D2926] text-white shadow-sm'
-                : 'text-[#6B6658] hover:text-[#2D2926]'
-            }`}
+            onClick={onOpenGlossary}
+            className="px-4 py-2 rounded-full bg-[#F5F2E9] text-xs font-bold text-[#2D2926] hover:bg-[#E6E2D3] border border-[#E6E2D3] transition-colors flex items-center gap-2 uppercase tracking-wider shadow-sm"
           >
-            <span>🇮🇳 Indian</span>
+            <Sparkles className="w-4 h-4 text-[#D4A373]" />
+            <span>Idioms Glossary</span>
           </button>
-          <button
-            onClick={() => onSwitchDialect('uk')}
-            className={`px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-all ${
-              dialect === 'uk'
-                ? 'bg-[#2D2926] text-white shadow-sm'
-                : 'text-[#6B6658] hover:text-[#2D2926]'
-            }`}
-          >
-            <span>🇬🇧 UK</span>
-          </button>
+
+          <div className="flex items-center gap-2 p-1.5 bg-[#F5F2E9] rounded-full border border-[#E6E2D3]">
+            <button
+              onClick={() => onSwitchDialect('indian')}
+              className={`px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-all ${
+                dialect === 'indian'
+                  ? 'bg-[#2D2926] text-white shadow-sm'
+                  : 'text-[#6B6658] hover:text-[#2D2926]'
+              }`}
+            >
+              <span>🇮🇳 Indian Voice</span>
+            </button>
+            <button
+              onClick={() => onSwitchDialect('uk')}
+              className={`px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-all ${
+                dialect === 'uk'
+                  ? 'bg-[#2D2926] text-white shadow-sm'
+                  : 'text-[#6B6658] hover:text-[#2D2926]'
+              }`}
+            >
+              <span>🇬🇧 UK Voice</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Main Studio Grid: Left Live Voice Deck, Right Transcript */}
-      <div className="grid lg:grid-cols-12 gap-6 items-start">
-        {/* Left Column (5 cols): Audio Visualizer & Central Voice Orb */}
-        <div className="lg:col-span-5 space-y-6">
+      {/* Main Studio Area (Purely Centered Voice Experience) */}
+      <div className="max-w-2xl mx-auto space-y-6">
+        {/* Audio Visualizer & Central Voice Orb */}
+        <div className="space-y-6">
           <div className="p-8 rounded-[32px] bg-white border border-[#E6E2D3] shadow-sm flex flex-col items-center justify-between text-center relative overflow-hidden">
             {/* Background Warm Glow Ring */}
             <div
@@ -387,7 +453,7 @@ export const VoiceStudio: React.FC<VoiceStudioProps> = ({
               <div>
                 <p className="text-base font-serif font-bold text-[#2D2926]">
                   {isAiSpeaking
-                    ? `${persona.name.split(' ')[0]} is speaking...`
+                    ? `${persona.name} is speaking...`
                     : isMuted
                     ? 'Microphone Muted'
                     : 'Listening to your voice...'}
@@ -445,158 +511,6 @@ export const VoiceStudio: React.FC<VoiceStudioProps> = ({
                   <span>Interrupt</span>
                 </button>
               </div>
-            </div>
-          </div>
-
-          {/* Quick Dialect Prompts */}
-          <div className="p-6 rounded-[32px] bg-white border border-[#E6E2D3] shadow-sm space-y-3">
-            <div className="flex items-center gap-2 text-xs font-bold text-[#2D2926] uppercase tracking-wider">
-              <Lightbulb className="w-4 h-4 text-[#D4A373]" />
-              <span>Suggested Starter Prompts:</span>
-            </div>
-
-            <div className="space-y-2">
-              {quickPrompts.map((promptText, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => handleSendTextMessage(promptText)}
-                  className="w-full p-3.5 rounded-2xl bg-[#F5F2E9]/70 hover:bg-[#E6E2D3]/60 border border-[#E6E2D3] text-xs text-left text-[#2D2926] transition-all flex items-center justify-between group font-medium"
-                >
-                  <span>"{promptText}"</span>
-                  <ChevronRight className="w-4 h-4 text-[#9C9481] group-hover:text-[#2D2926] group-hover:translate-x-1 transition-all shrink-0" />
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Right Column (7 cols): Live Conversation Transcript */}
-        <div className="lg:col-span-7 space-y-4">
-          <div className="p-6 rounded-[32px] bg-white border border-[#E6E2D3] shadow-sm flex flex-col h-[600px]">
-            {/* Transcript Top Bar */}
-            <div className="pb-4 border-b border-[#E6E2D3] flex items-center justify-between gap-4">
-              <div className="flex items-center gap-2">
-                <MessageSquare className="w-4 h-4 text-[#D4A373]" />
-                <h3 className="text-base font-serif font-bold text-[#2D2926]">
-                  Spoken Transcript
-                </h3>
-                <span className="text-[10px] uppercase tracking-widest px-2.5 py-0.5 rounded-full bg-[#F5F2E9] text-[#6B6658] font-bold border border-[#E6E2D3]">
-                  {transcripts.length} turns
-                </span>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={onOpenGlossary}
-                  className="px-3 py-1.5 rounded-full bg-[#F5F2E9] text-xs font-bold text-[#D4A373] hover:bg-[#E6E2D3] border border-[#E6E2D3] transition-colors flex items-center gap-1.5 uppercase tracking-wider"
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>Glossary</span>
-                </button>
-
-                <button
-                  onClick={() => setTranscripts([])}
-                  className="p-2 rounded-full text-[#6B6658] hover:text-[#2D2926] hover:bg-[#F5F2E9] transition-colors"
-                  title="Clear Transcript"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            {/* Transcript Messages Body */}
-            <div className="flex-1 overflow-y-auto py-4 space-y-4 pr-1">
-              {transcripts.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-center p-6 text-[#6B6658] space-y-3">
-                  <div className="w-12 h-12 rounded-full bg-[#F5F2E9] flex items-center justify-center border border-[#E6E2D3] text-[#D4A373]">
-                    <Mic className="w-6 h-6 animate-pulse" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-serif font-bold text-[#2D2926]">
-                      Start speaking to begin your live dialogue!
-                    </p>
-                    <p className="text-xs text-[#6B6658] mt-1">
-                      Speak into your microphone or choose one of the prompts.
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                transcripts.map((t) => (
-                  <div
-                    key={t.id}
-                    className={`flex flex-col ${
-                      t.sender === 'user' ? 'items-end' : 'items-start'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 mb-1 px-1">
-                      <span className="text-[10px] uppercase tracking-widest font-bold text-[#9C9481]">
-                        {t.sender === 'user'
-                          ? 'You'
-                          : `${persona.name} (${t.dialect === 'indian' ? '🇮🇳' : '🇬🇧'})`}
-                      </span>
-                      <span className="text-[10px] text-[#9C9481]">
-                        {t.timestamp}
-                      </span>
-                    </div>
-
-                    <div
-                      className={`max-w-[85%] p-4 rounded-2xl text-xs leading-relaxed ${
-                        t.sender === 'user'
-                          ? 'bg-[#2D2926] text-white rounded-tr-none shadow-sm'
-                          : 'bg-[#F5F2E9] text-[#2D2926] border border-[#E6E2D3] rounded-tl-none'
-                      }`}
-                    >
-                      <p>{t.text}</p>
-
-                      {/* Detected Idioms Badges */}
-                      {t.detectedIdioms && t.detectedIdioms.length > 0 && (
-                        <div className="mt-3 pt-2.5 border-t border-[#E6E2D3] space-y-1.5">
-                          <p className="text-[10px] font-bold text-[#D4A373] flex items-center gap-1 uppercase tracking-wider">
-                            <Sparkles className="w-3 h-3" />
-                            <span>Idioms Identified:</span>
-                          </p>
-                          <div className="flex flex-wrap gap-1.5">
-                            {t.detectedIdioms.map((item, idx) => (
-                              <button
-                                key={idx}
-                                onClick={() =>
-                                  setActiveTooltipIdiom(
-                                    activeTooltipIdiom === item.idiom
-                                      ? null
-                                      : item.idiom
-                                  )
-                                }
-                                className="px-2 py-0.5 rounded-full bg-[#E9EDC9] text-[#2D2926] border border-[#CCD5AE] text-[10px] font-bold hover:bg-[#CCD5AE] transition-colors"
-                              >
-                                "{item.idiom}"
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))
-              )}
-              <div ref={transcriptEndRef} />
-            </div>
-
-            {/* Bottom Text Fallback Bar */}
-            <div className="pt-3 border-t border-[#E6E2D3] flex items-center gap-2">
-              <input
-                type="text"
-                value={textInput}
-                onChange={(e) => setTextInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSendTextMessage()}
-                placeholder={`Type a message in ${dialect === 'indian' ? 'Indian' : 'UK'} mode...`}
-                className="flex-1 px-4 py-3 rounded-full bg-[#F5F2E9] border border-[#E6E2D3] text-xs text-[#2D2926] placeholder-[#9C9481] focus:outline-none focus:border-[#D4A373]"
-              />
-              <button
-                onClick={() => handleSendTextMessage()}
-                className="p-3 rounded-full bg-[#2D2926] text-white hover:bg-[#D4A373] transition-colors font-bold shadow-sm"
-              >
-                <Send className="w-4 h-4" />
-              </button>
             </div>
           </div>
         </div>

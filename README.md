@@ -1,37 +1,20 @@
-# DialectLive AI Voice
+<div align="center">
+<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
+</div>
 
-DialectLive is a natural-tones Voice Studio demonstrating low-latency, bidirectional audio-to-audio conversations using the **Gemini Live API**.
+# Run and deploy your AI Studio app
 
-## Tech Stack
-*   **Frontend**: React, Vite, TailwindCSS
-*   **Backend**: Node.js, Express, WebSockets
-*   **AI**: Google GenAI SDK (`gemini-3.1-flash-live-preview`)
+This contains everything you need to run your app locally.
+
+View your app in AI Studio: https://ai.studio/apps/e254fd16-ded4-4fe8-972d-2915d408548c
 
 ## Run Locally
 
+**Prerequisites:**  Node.js
+
+
 1. Install dependencies:
-   ```bash
-   npm install
-   ```
-2. Create a `.env` file and add your Gemini API Key:
-   ```bash
-   GEMINI_API_KEY="your-api-key-here"
-   ```
-3. Run the development server:
-   ```bash
-   npm run dev
-   ```
-
-## Deploying on Render (Web Service)
-
-This project can be deployed easily on Render's Free Tier. 
-
-1. Connect this GitHub repository to Render.
-2. Set the following configuration:
-   *   **Runtime**: `Node`
-   *   **Build Command**: `npm install && npm run build`
-   *   **Start Command**: `npm run start`
-3. Add the following **Environment Variable**:
-   *   `GEMINI_API_KEY`: Your Google AI Studio API key.
-
-Render supports WebSockets natively on Web Services, so the Live API will function correctly over the `wss://` protocol.
+   `npm install`
+2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+3. Run the app:
+   `npm run dev`
