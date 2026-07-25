@@ -116,7 +116,7 @@ function endConversation() {
     if (timerInterval) clearInterval(timerInterval);
     if (recorder) recorder.destroy();
     if (audioPlayer) audioPlayer.stop();
-    navigateTo('survey');
+    navigateTo('thankyou');
 }
 
 window.addEventListener('screenChanged', async (e) => {
